@@ -5,6 +5,11 @@ library(here)
 action_counts <- read_csv(here("beaches", "action_duration.csv")) %>% 
   clean_names()
 
+test <- action_counts %>% 
+  filter(year == "2017" | year == "2018", 
+         state == "CA") %>% 
+  distinct(beach_id) 
+
 action_counts_clean <- action_counts %>% 
   mutate(state = str_replace(state, "BR", "WI")) %>% 
   mutate(state = str_replace(state, "MK", "WA")) %>% 
@@ -31,15 +36,15 @@ beach_actions_clean <- beach_actions %>%
          state != "GP",
          state != "GU",
          state != "MP",
-         state != "VI") %>% 
+         state != "VI")
+  
+beach_actions_clean2 <- beach_actions_clean %>% 
   separate_rows(action_reasons, sep = ",") %>% 
   separate_rows(action_indicator, sep = ",") %>% 
   separate_rows(action_possible_source, sep = ",") %>% 
   mutate(action_reasons = str_trim(action_reasons)) %>% 
   mutate(action_indicator = str_trim(action_indicator)) %>% 
-  mutate(action_possible_source = str_trim(action_possible_source))
-
-beach_actions_clean2 <- beach_actions_clean %>% 
+  mutate(action_possible_source = str_trim(action_possible_source)) %>% 
   mutate(action_possible_source = str_replace(action_possible_source, "CSO", "COMBINED SEWER OVERFLOW")) %>% 
   mutate(action_possible_source = str_replace(action_possible_source, "SSO", "SANITARY SEWER OVERFLOW")) %>% 
   mutate(action_possible_source = str_replace(action_possible_source, "POTW", "PUBLICLY-OWNED TREATMENT WORKS")) %>% 
@@ -54,6 +59,10 @@ beach_actions_clean2 <- beach_actions_clean %>%
 beach_actions_clean2 %>% 
   count(action_reasons) %>% 
   arrange(desc(n))
+
+beach_actions_clean2 %>% filter(action_reasons == "POLICY") %>% count(state)
+
+beach_actions_clean2 %>% filter(action_reasons == "MODEL") %>% count(state)
 
 beach_actions_clean2 %>% 
   count(action_indicator) 
@@ -89,7 +98,7 @@ sums_pollution_indicator <- action_counts_sum %>%
   full_join(both_collapsed, by = "beach_id") %>% 
   select(beach_name, beach_id, county, state, no_of_beach_actions, no_of_days_under_action, sources, indicators)
 
-action_types <- beach_actions_clean2 %>% 
+action_types <- beach_actions_clean %>% #needed to use beach_actions_clean because numbers get duplicated for action types when i run separate_rows
   count(beach_id, action_type) %>% 
   spread(action_type, n) %>% 
   clean_names
@@ -105,10 +114,29 @@ action_reasons <- beach_actions_clean2 %>%
   # mutate(reasons = str_replace(reasons, ", UNKNOWN", "")) %>% 
   # mutate(reasons = str_replace(reasons,", OTHER, ", ""))
 
-types_reasons <- action_types %>% 
+types_reasons <- action_types %>%
   full_join(action_reasons, by = "beach_id")
 
 all_beach_vars <- sums_pollution_indicator %>% 
   full_join(types_reasons, by = "beach_id")
 
+blankstate <- all_beach_vars %>% 
+  filter(is.na(state))
+
 write_csv(all_beach_vars, "all_beach_vars.csv")
+
+### count number of actions by state
+state_sums <- all_beach_vars %>% 
+  group_by(state) %>% 
+  summarize_at(vars(no_of_beach_actions, no_of_days_under_action, closure, contamination_advisory, rain_advisory), sum, na.rm =T)
+
+countofbeaches <- all_beach_vars %>% 
+  ungroup() %>% 
+  count(state)
+
+state_sums_perbeach <- state_sums %>%
+  left_join(countofbeaches, by = "state") %>% 
+  mutate(actionsperbeach = no_of_beach_actions/n) %>% 
+  mutate(daysperbeach = no_of_days_under_action/n) 
+# california counts don't match
+# massachusetts is one number off
