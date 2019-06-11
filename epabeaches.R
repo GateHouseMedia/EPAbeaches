@@ -2,13 +2,8 @@ library(tidyverse)
 library(janitor)
 library(here)
 
-action_counts <- read_csv(here("beaches", "action_duration.csv")) %>% 
+action_counts <- read_csv(here("beaches_code", "action_duration.csv")) %>% 
   clean_names()
-
-test <- action_counts %>% 
-  filter(year == "2017" | year == "2018", 
-         state == "CA") %>% 
-  distinct(beach_id) 
 
 action_counts_clean <- action_counts %>% 
   mutate(state = str_replace(state, "BR", "WI")) %>% 
@@ -25,7 +20,7 @@ action_counts_sum <- action_counts_clean %>%
   group_by(beach_id, beach_name, county, state) %>% 
   summarize_at(vars(no_of_beach_actions:no_of_actions_greater_than_30_day_duration), sum, na.rm =T)
 
-beach_actions <- read_csv(here("beaches", "beach_actions_(advisories_and_closures).csv")) %>% 
+beach_actions <- read_csv(here("beaches_code", "beach_actions_(advisories_and_closures).csv")) %>% 
   clean_names() 
 
 beach_actions_clean <- beach_actions %>% 
@@ -126,7 +121,7 @@ blankstate <- all_beach_vars %>%
 write_csv(all_beach_vars, "all_beach_vars.csv")
 
 ### count number of actions by state
-state_sums <- all_beach_vars %>% 
+state_sums <- all_beach_vars 
   group_by(state) %>% 
   summarize_at(vars(no_of_beach_actions, no_of_days_under_action, closure, contamination_advisory, rain_advisory), sum, na.rm =T)
 
@@ -137,6 +132,17 @@ countofbeaches <- all_beach_vars %>%
 state_sums_perbeach <- state_sums %>%
   left_join(countofbeaches, by = "state") %>% 
   mutate(actionsperbeach = no_of_beach_actions/n) %>% 
-  mutate(daysperbeach = no_of_days_under_action/n) 
+  mutate(daysperbeach = no_of_days_under_action/n) %>% 
+  adorn_totals(where = "row")
 # california counts don't match
 # massachusetts is one number off
+
+# numbers i ran for the story
+action_types %>% 
+  filter(!is.na(closure))
+
+beach_actions_clean2 %>%
+  filter(action_type == "Closure") %>% 
+  distinct(beach_id, .keep_all = T) %>% 
+  count(action_reasons)
+                          
