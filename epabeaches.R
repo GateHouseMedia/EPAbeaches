@@ -112,4 +112,3 @@ all_beach_vars <- sums_pollution_indicator %>%
   full_join(types_reasons, by = "beach_id")
 
 write_csv(all_beach_vars, "all_beach_vars.csv")
-
