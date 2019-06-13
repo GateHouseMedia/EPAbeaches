@@ -39,10 +39,10 @@ beach_actions_clean2 %>%
 
 beach_actions_clean2 %>% 
   count(action_indicator) 
-# Total coliforms include species that may inhabit the intestines of warm-blooded animals or occur naturally in soil, vegetation, and water. 
 
 beach_actions_clean2 %>% 
-  count(action_reasons) 
+  count(action_possible_source) %>% 
+  arrange(desc(n))
 
 beach_actions_collapsed <- beach_actions_clean2 %>% 
   group_by(beach_id, beach_name, state, county) %>% 
@@ -63,7 +63,7 @@ all_beach_vars <- left_join(beach_actions_collapsed, beach_numbers, by = "beach_
 write_csv(all_beach_vars, "all_beach_vars.csv")
 
 ### count number of actions by state
-state_sums <- all_beach_vars 
+state_sums <- all_beach_vars %>% 
   group_by(state) %>% 
   summarize_at(vars(no_of_beach_actions, no_of_days_under_action, closure, contamination_advisory, rain_advisory), sum, na.rm =T)
 
@@ -77,12 +77,48 @@ state_sums_perbeach <- state_sums %>%
   mutate(daysperbeach = no_of_days_under_action/n) %>% 
   adorn_totals(where = "row")
 
-# numbers i ran for the story
-action_types %>% 
-  filter(!is.na(closure))
-
+### numbers for story ### 
 beach_actions_clean2 %>%
   filter(action_type == "Closure") %>% 
   distinct(beach_id, .keep_all = T) %>% 
   count(action_reasons)
-                          
+
+beach_actions_clean %>% 
+  filter(beach_id == "NY569623") %>% 
+  filter(action_type == "Closure") %>% 
+  count(action_possible_source)
+
+beach_actions_clean %>% 
+  filter(beach_id == "NY626819") %>% 
+  filter(action_type == "Closure") %>% 
+  count(action_possible_source)
+
+actions <- beach_actions_clean %>%
+  count(action_reasons) %>% 
+  arrange(desc(n))
+  
+actions$Pct <- actions$n / sum(actions$n) * 100
+
+# elevated bacteria percent
+43.479059515 + 13.776634827
+
+# rain fall percent
+38.262307127 + 13.776634827
+
+# count beaches with closures
+all_beach_vars %>% 
+  filter(closure > 0)
+
+### graphics ###
+
+closures_contaminations <- beach_actions_clean %>%
+  distinct(beach_id, action_type, year) %>% 
+  filter(action_type != "Rain Advisory") %>%  
+  count(action_type, year)
+
+write_csv(closures_contaminations, "graphic1.csv")
+
+pollution_sources <- beach_actions_clean2 %>%
+  count(action_possible_source)
+
+write_csv(pollution_sources, "graphic2.csv")
