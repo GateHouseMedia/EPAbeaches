@@ -5,6 +5,7 @@ library(lubridate)
 beach_actions <- read_csv("EPAbeaches/beach_actions_(advisories_and_closures).csv") %>% 
   clean_names() 
 
+# remove territories other than PR and clean some states named wrong
 beach_actions_clean <- beach_actions %>% 
   mutate(state = str_replace(state, "BR", "WI")) %>% 
   mutate(state = str_replace(state, "MK", "WA")) %>% 
@@ -15,6 +16,7 @@ beach_actions_clean <- beach_actions %>%
          state != "MP",
          state != "VI")
   
+# clean for analysis
 beach_actions_clean2 <- beach_actions_clean %>% 
   separate_rows(action_reasons, sep = ",") %>% 
   separate_rows(action_indicator, sep = ",") %>% 
@@ -44,12 +46,14 @@ beach_actions_clean2 %>%
   count(action_possible_source) %>% 
   arrange(desc(n))
 
+# collapse so there's only one row for each beach
 beach_actions_collapsed <- beach_actions_clean2 %>% 
   group_by(beach_id, beach_name, state, county) %>% 
   summarize(reasons = paste(toString(unique(action_reasons)), collapse = ","),
             indicators = paste(toString(unique(action_indicator)), collapse = ","),
             sources = paste(toString(unique(action_possible_source)), collapse = ","))
 
+# summarize so there's only one row for each beach
 beach_numbers <- beach_actions_clean %>% 
   group_by(beach_id) %>% 
   summarize(no_of_beach_actions = n(),
@@ -58,6 +62,7 @@ beach_numbers <- beach_actions_clean %>%
             rain_advisory = sum(action_type == "Rain Advisory"),
             contamination_advisory = sum(action_type == "Contamination Advisory"))
 
+# join
 all_beach_vars <- left_join(beach_actions_collapsed, beach_numbers, by = "beach_id")
 
 write_csv(all_beach_vars, "all_beach_vars.csv")
@@ -71,6 +76,7 @@ countofbeaches <- all_beach_vars %>%
   ungroup() %>% 
   count(state)
 
+# create state summaries
 state_sums_perbeach <- state_sums %>%
   left_join(countofbeaches, by = "state") %>% 
   mutate(actionsperbeach = no_of_beach_actions/n) %>% 
@@ -79,6 +85,7 @@ state_sums_perbeach <- state_sums %>%
 
 write_csv(state_sums_perbeach, "statesums.csv")
 
+# states with most contamination advisories and closures (no rain)
 state_sums_perbeach %>% 
   mutate(contamclose = closure + contamination_advisory) %>% 
   arrange(desc(contamclose))
