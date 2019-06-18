@@ -1,8 +1,8 @@
 library(tidyverse)
 library(janitor)
-library(here)
+library(lubridate)
 
-beach_actions <- read_csv(here("beaches_code", "beach_actions_(advisories_and_closures).csv")) %>% 
+beach_actions <- read_csv("EPAbeaches/beach_actions_(advisories_and_closures).csv") %>% 
   clean_names() 
 
 beach_actions_clean <- beach_actions %>% 
@@ -77,6 +77,12 @@ state_sums_perbeach <- state_sums %>%
   mutate(daysperbeach = no_of_days_under_action/n) %>% 
   adorn_totals(where = "row")
 
+write_csv(state_sums_perbeach, "statesums.csv")
+
+state_sums_perbeach %>% 
+  mutate(contamclose = closure + contamination_advisory) %>% 
+  arrange(desc(contamclose))
+
 ### numbers for story ### 
 beach_actions_clean2 %>%
   filter(action_type == "Closure") %>% 
@@ -107,12 +113,11 @@ actions$Pct <- actions$n / sum(actions$n) * 100
 
 # count beaches with closures
 all_beach_vars %>% 
-  filter(closure > 0)
+  filter(closure > 0) 
 
 ### graphics ###
 
 closures_contaminations <- beach_actions_clean %>%
-  distinct(beach_id, action_type, year) %>% 
   filter(action_type != "Rain Advisory") %>%  
   count(action_type, year)
 
@@ -122,3 +127,30 @@ pollution_sources <- beach_actions_clean2 %>%
   count(action_possible_source)
 
 write_csv(pollution_sources, "graphic2.csv")
+
+sumbyyear <- beach_actions %>% 
+  mutate(action_start_date = dmy(action_start_date)) %>% 
+  mutate(action_end_date = dmy(action_end_date)) %>% 
+  group_by(month = floor_date(action_start_date, "month")) %>% 
+  count(month) %>% 
+  filter(month == "2017-06-01" |
+         month == "2017-07-01" |
+         month == "2017-08-01" |
+         month == "2017-09-01" |
+         month == "2018-06-01" |
+         month == "2018-07-01" |
+         month == "2018-08-01" |
+         month == "2018-09-01") %>% 
+  adorn_totals(where = "row")
+  
+beaches_monitored <- read_csv("EPAbeaches/beach_monitoring_frequency.csv") %>% 
+  clean_names()
+
+latestyear <- beaches_monitored %>% 
+  filter(year == "2018") %>% 
+  select(beach_id, beach_name, county, state, swim_season_monitoring_frequency, swim_season_monitor_frequency_units, off_season_monitoring_frequency, off_season_monitor_frequency_units)
+
+join_freq_and_all <- latestyear %>%
+  left_join(all_beach_vars, by = "beach_id")
+
+write_csv(join_freq_and_all, "frequency.csv")  
