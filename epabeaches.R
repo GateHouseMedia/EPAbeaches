@@ -17,7 +17,9 @@ beach_actions_clean <- beach_actions %>%
          state != "GU",
          state != "MP",
          state != "VI")
-  
+
+write_csv(beach_actions_clean, "beach_actions_clean.csv")
+
 # clean for analysis
 beach_actions_clean2 <- beach_actions_clean %>% 
   separate_rows(action_reasons, sep = ",") %>% 
@@ -83,7 +85,8 @@ state_sums_perbeach <- state_sums %>%
   left_join(countofbeaches, by = "state") %>% 
   mutate(actionsperbeach = no_of_beach_actions/n) %>% 
   mutate(daysperbeach = no_of_days_under_action/n) %>% 
-  adorn_totals(where = "row")
+  adorn_totals(where = "row") %>% 
+  rename("number_of_beaches_with_actions" = "n")
 
 write_csv(state_sums_perbeach, "statesums.csv")
 
@@ -124,12 +127,19 @@ actions$Pct <- actions$n / sum(actions$n) * 100
 all_beach_vars %>% 
   filter(closure > 0) 
 
+# contamination advisories
+all_beach_vars %>% 
+  filter(contamination_advisory > 0)
+
+# rain advisories
+all_beach_vars %>% 
+  filter(rain_advisory > 0)
+
 # count actions taken during summer months of 2017 and 2018
-sumbyyear <- beach_actions %>% 
+sumbyyear <- beach_actions_clean %>% 
   mutate(action_start_date = dmy(action_start_date)) %>% 
   mutate(action_end_date = dmy(action_end_date)) %>% 
   group_by(month = floor_date(action_start_date, "month")) %>% 
-  count(month) %>% 
   filter(month == "2017-06-01" |
          month == "2017-07-01" |
          month == "2017-08-01" |
@@ -138,8 +148,27 @@ sumbyyear <- beach_actions %>%
          month == "2018-07-01" |
          month == "2018-08-01" |
          month == "2018-09-01") %>% 
-  adorn_totals(where = "row")
+  count(month, action_type)
 
+beach_actions_clean %>% 
+  mutate(action_start_date = dmy(action_start_date)) %>% 
+  mutate(action_end_date = dmy(action_end_date)) %>% 
+  group_by(month = floor_date(action_start_date, "month")) %>% 
+  filter(month == "2017-06-01" |
+           month == "2017-07-01" |
+           month == "2017-08-01" |
+           month == "2017-09-01" |
+           month == "2018-06-01" |
+           month == "2018-07-01" |
+           month == "2018-08-01" |
+           month == "2018-09-01") %>% 
+  filter(action_type != "Rain Advisory") %>% 
+  count(month)
+
+write_csv(sumbyyear, "summernumbers.csv")
+
+beach_actions_clean %>% 
+  count(action_type)
 
 # import all beaches and their status for join
 beachprofile <- read_csv("beaches/beach_profile_list.csv") %>% 
