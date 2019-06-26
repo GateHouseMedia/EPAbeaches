@@ -1,11 +1,13 @@
 library(tidyverse)
 library(janitor)
 library(lubridate)
+library(jsonlite)
+library(cdlTools)
 
 beach_actions <- read_csv("EPAbeaches/beach_actions_(advisories_and_closures).csv") %>% 
   clean_names() 
 
-# remove territories other than PR and clean some states named wrong
+# remove territories other than PR and convert tribes to states
 beach_actions_clean <- beach_actions %>% 
   mutate(state = str_replace(state, "BR", "WI")) %>% 
   mutate(state = str_replace(state, "MK", "WA")) %>% 
@@ -88,7 +90,7 @@ write_csv(state_sums_perbeach, "statesums.csv")
 # states with most contamination advisories and closures (no rain)
 state_sums_perbeach %>% 
   mutate(contamclose = closure + contamination_advisory) %>% 
-  arrange(desc(contamclose))
+  arrange(desc(contamclose)) %>% View()
 
 ### numbers for story ### 
 beach_actions_clean2 %>%
@@ -122,19 +124,7 @@ actions$Pct <- actions$n / sum(actions$n) * 100
 all_beach_vars %>% 
   filter(closure > 0) 
 
-### graphics ###
-
-closures_contaminations <- beach_actions_clean %>%
-  filter(action_type != "Rain Advisory") %>%  
-  count(action_type, year)
-
-write_csv(closures_contaminations, "graphic1.csv")
-
-pollution_sources <- beach_actions_clean2 %>%
-  count(action_possible_source)
-
-write_csv(pollution_sources, "graphic2.csv")
-
+# count actions taken during summer months of 2017 and 2018
 sumbyyear <- beach_actions %>% 
   mutate(action_start_date = dmy(action_start_date)) %>% 
   mutate(action_end_date = dmy(action_end_date)) %>% 
@@ -149,15 +139,123 @@ sumbyyear <- beach_actions %>%
          month == "2018-08-01" |
          month == "2018-09-01") %>% 
   adorn_totals(where = "row")
-  
-beaches_monitored <- read_csv("EPAbeaches/beach_monitoring_frequency.csv") %>% 
+
+
+# import all beaches and their status for join
+beachprofile <- read_csv("beaches/beach_profile_list.csv") %>% 
   clean_names()
 
-latestyear <- beaches_monitored %>% 
+# clean
+beachprofile_clean <- beachprofile %>% 
+  mutate(state_code = str_replace(state_code, "BR", "WI")) %>% 
+  mutate(state_code = str_replace(state_code, "MK", "WA")) %>% 
+  filter(state_code != "AS",
+         state_code != "CN", 
+         state_code != "GP",
+         state_code != "GU",
+         state_code != "MP",
+         state_code != "VI") %>% 
+  distinct(beach_id, beach_status, .keep_all = T) %>% 
+  filter(year == "2018") %>% # only showing beach statuses as of 2018
+  select(beach_id, beach_name, state_code, county, beach_status) %>% 
+  rename(state = "state_code")
+
+beachprofile_clean %>% # confirm that it matches EPA counts
+  filter(beach_status != "Historical") %>% 
+  distinct(beach_id, .keep_all = T) %>% 
+  count(state) %>% View()
+
+allbeaches <- full_join(all_beach_vars, beachprofile_clean, by = c("beach_id", "beach_name", "state", "county")) %>% 
+  filter(!(beach_status == "Historical" & is.na(reasons))) %>% # keep beaches that are historic but have action data
+  mutate(status = case_when(beach_status == "No advisory or closure" & !is.na(reasons) ~ "NA", # remove "no advisory or closure" language if a beach has had an advisory or closure
+                            beach_status == "Historical" ~ "Historical*",
+                            TRUE ~ paste0(beach_status))) %>% 
+  select(-beach_status)
+
+allbeaches %>%
+  ungroup() %>% 
+  count(state) 
+
+allbeaches %>% 
+  ungroup() %>% 
+  count(beach_status) 
+
+### graphics ###
+
+closures_contaminations <- beach_actions_clean %>%
+  filter(action_type != "Rain Advisory") %>%  
+  count(action_type, year)
+
+write_csv(closures_contaminations, "graphic1.csv")
+
+pollution_sources <- beach_actions_clean2 %>%
+  count(action_possible_source)
+
+write_csv(pollution_sources, "graphic2.csv")
+
+# headers for searchable database
+allbeachesforpub <- allbeaches %>% 
+  ungroup() %>% 
+  mutate(state = fips(state, to = "Name")) %>% 
+  rename("EPA beach ID" = "beach_id") %>% 
+  rename("Beach name" = "beach_name") %>% 
+  rename("State" = "state") %>% 
+  rename("County" = "county") %>% 
+  rename("Action reasons" = "reasons") %>% 
+  rename("Bacteria indicators" = "indicators") %>% 
+  rename("Possible pollution sources" = "sources") %>% 
+  rename("Total number of beach actions" = "no_of_beach_actions") %>% 
+  rename("Total number of days under action" = "no_of_days_under_action") %>% 
+  rename("Total number of beach closures" = "closure") %>% 
+  rename("Total number of rain advisories" = "rain_advisory") %>% 
+  rename("Total number of contamination advisories" = "contamination_advisory") %>% 
+  rename("Beach status" = "status") 
+
+write_json(allbeaches, "beaches.json")
+
+allbeachesforpubjson <- toJSON(allbeachesforpub, na = "string")
+
+write(allbeachesforpubjson, "allbeachesforpub.json")
+
+### for gatehouse markets ###
+
+state_summary <- read_csv("beaches/state_summary.csv") %>% 
+  clean_names()
+
+clean_state_summary <- state_summary %>% 
+  mutate(state = str_replace(state, "BR", "WI")) %>% 
+  mutate(state = str_replace(state, "MK", "WA")) %>% 
+  filter(state != "AS",
+         state != "CN", 
+         state != "GP",
+         state != "GU",
+         state != "MP",
+         state != "VI")
+
+sum_states2018 <- clean_state_summary %>% 
   filter(year == "2018") %>% 
-  select(beach_id, beach_name, county, state, swim_season_monitoring_frequency, swim_season_monitor_frequency_units, off_season_monitoring_frequency, off_season_monitor_frequency_units)
+  group_by(state) %>% 
+  summarize(total_beaches = sum(no_of_beach_act_beaches),
+            monitored_beaches = sum(no_of_monitored_beaches),
+            percent_monitored = (monitored_beaches/total_beaches * 100),
+            beaches_with_actions = sum(no_of_monitored_beacheswith_actions),
+            beaches_without_actions = sum(no_of_monitored_beacheswithout_actions),
+            total_actions = sum(total_no_of_beach_actions),
+            total_days_under_action = sum(no_of_days_undera_beach_action_monitored_beaches),
+            total_days_not_under_action = sum(no_of_days_not_undera_beach_action_monitored_beaches))
 
-join_freq_and_all <- latestyear %>%
-  left_join(all_beach_vars, by = "beach_id")
+write_csv(sum_states2018, "2018_state_summaries.csv")
 
-write_csv(join_freq_and_all, "frequency.csv")  
+sum_states2017 <- clean_state_summary %>% 
+  filter(year == "2017") %>% 
+  group_by(state) %>% 
+  summarize(total_beaches = sum(no_of_beach_act_beaches),
+            monitored_beaches = sum(no_of_monitored_beaches),
+            percent_monitored = (monitored_beaches/total_beaches * 100),
+            beaches_with_actions = sum(no_of_monitored_beacheswith_actions),
+            beaches_without_actions = sum(no_of_monitored_beacheswithout_actions),
+            total_actions = sum(total_no_of_beach_actions),
+            total_days_under_action = sum(no_of_days_undera_beach_action_monitored_beaches),
+            total_days_not_under_action = sum(no_of_days_not_undera_beach_action_monitored_beaches))
+
+write_csv(sum_states2017, "2017_state_summaries.csv")
