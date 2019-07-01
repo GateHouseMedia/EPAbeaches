@@ -196,8 +196,8 @@ beachprofile_clean %>% # confirm that it matches EPA counts
 
 allbeaches <- full_join(all_beach_vars, beachprofile_clean, by = c("beach_id", "beach_name", "state", "county")) %>% 
   filter(!(beach_status == "Historical" & is.na(reasons))) %>% # keep beaches that are historic but have action data
-  mutate(status = case_when(beach_status == "No advisory or closure" & !is.na(reasons) ~ "NA", # remove "no advisory or closure" language if a beach has had an advisory or closure
-                            beach_status == "Historical" ~ "Historical*",
+  mutate(status = case_when(beach_status == "No advisory or closure" & !is.na(reasons) ~ "Active", # remove "no advisory or closure" language if a beach has had an advisory or closure
+                            beach_status == "No advisory or closure" ~ "Active: No advisory or closure",
                             TRUE ~ paste0(beach_status))) %>% 
   select(-beach_status)
 
@@ -208,6 +208,11 @@ allbeaches %>%
 allbeaches %>% 
   ungroup() %>% 
   count(beach_status) 
+
+allbeaches %>% 
+  ungroup() %>% 
+  filter(status == "Dormant") %>% 
+  filter(no_of_beach_actions > 0)
 
 ### graphics ###
 
@@ -238,7 +243,7 @@ allbeachesforpub <- allbeaches %>%
   rename("Total number of beach closures" = "closure") %>% 
   rename("Total number of rain advisories" = "rain_advisory") %>% 
   rename("Total number of contamination advisories" = "contamination_advisory") %>% 
-  rename("Beach status" = "status") 
+  rename("2018 beach reporting status" = "status") 
 
 write_json(allbeaches, "beaches.json")
 
@@ -248,7 +253,7 @@ write(allbeachesforpubjson, "allbeachesforpub.json")
 
 ### for gatehouse markets ###
 
-state_summary <- read_csv("beaches/state_summary.csv") %>% 
+state_summary <- read_csv("EPAbeaches/state_summary.csv") %>% 
   clean_names()
 
 clean_state_summary <- state_summary %>% 
