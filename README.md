@@ -4,9 +4,9 @@ Data pulled from [BEACON](https://watersgeo.epa.gov/BEACON2/reports.html) and us
 
 We specifically used the following reports from BEACON: 
 
-Beach Actions (Advisories and Closures)
-Beach Profile 
-State Summary
+-Beach Actions (Advisories and Closures) 
+-Beach Profile 
+-State Summary
 
 ## Contact me
 
