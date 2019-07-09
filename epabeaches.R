@@ -96,21 +96,6 @@ state_sums_perbeach %>%
   arrange(desc(contamclose)) %>% View()
 
 ### numbers for story ### 
-beach_actions_clean2 %>%
-  filter(action_type == "Closure") %>% 
-  distinct(beach_id, .keep_all = T) %>% 
-  count(action_reasons)
-
-beach_actions_clean %>% 
-  filter(beach_id == "NY569623") %>% 
-  filter(action_type == "Closure") %>% 
-  count(action_possible_source)
-
-beach_actions_clean %>% 
-  filter(beach_id == "NY626819") %>% 
-  filter(action_type == "Closure") %>% 
-  count(action_possible_source)
-
 actions <- beach_actions_clean %>%
   count(action_reasons) %>% 
   arrange(desc(n))
@@ -134,38 +119,6 @@ all_beach_vars %>%
 # rain advisories
 all_beach_vars %>% 
   filter(rain_advisory > 0)
-
-# count actions taken during summer months of 2017 and 2018
-sumbyyear <- beach_actions_clean %>% 
-  mutate(action_start_date = dmy(action_start_date)) %>% 
-  mutate(action_end_date = dmy(action_end_date)) %>% 
-  group_by(month = floor_date(action_start_date, "month")) %>% 
-  filter(month == "2017-06-01" |
-         month == "2017-07-01" |
-         month == "2017-08-01" |
-         month == "2017-09-01" |
-         month == "2018-06-01" |
-         month == "2018-07-01" |
-         month == "2018-08-01" |
-         month == "2018-09-01") %>% 
-  count(month, action_type)
-
-beach_actions_clean %>% 
-  mutate(action_start_date = dmy(action_start_date)) %>% 
-  mutate(action_end_date = dmy(action_end_date)) %>% 
-  group_by(month = floor_date(action_start_date, "month")) %>% 
-  filter(month == "2017-06-01" |
-           month == "2017-07-01" |
-           month == "2017-08-01" |
-           month == "2017-09-01" |
-           month == "2018-06-01" |
-           month == "2018-07-01" |
-           month == "2018-08-01" |
-           month == "2018-09-01") %>% 
-  filter(action_type != "Rain Advisory") %>% 
-  count(month)
-
-write_csv(sumbyyear, "summernumbers.csv")
 
 beach_actions_clean %>% 
   count(action_type)
